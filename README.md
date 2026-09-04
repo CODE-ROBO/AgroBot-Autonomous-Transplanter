@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/ROS_2-Humble-22314E?style=for-the-badge&logo=ros&logoColor=white" alt="ROS2"/>
   <img src="https://img.shields.io/badge/Python-3.10-FFD700?style=for-the-badge&logo=python&logoColor=black" alt="Python"/>
   <img src="https://img.shields.io/badge/C++-17-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white" alt="C++"/>
-  <img src="https://img.shields.io/badge/C
+  <img src="https://img.shields.io/badgs
   <img src="https://img.shields.io/badge/SolidWorks-CAD-ED1C24?style=for-the-badge&logo=dassaultsystemes&logoColor=white" alt="CAD"/>
   <img src="https://img.shields.io/badge/Ansys-Multiphysics-8B0000?style=for-the-badge&logo=Ansys&logoColor=white" alt="Ansys"/>
   <img src="https://img.shields.io/badge/EPICS-Purdue_RSCOE-C2882B?style=for-the-badge" alt="EPICS"/>
