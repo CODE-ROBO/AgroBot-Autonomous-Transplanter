@@ -9,7 +9,6 @@
   <img src="https://img.shields.io/badge/Ansys-Multiphysics-8B0000?style=for-the-badge&logo=Ansys&logoColor=white" alt="Ansys"/>
   <img src="https://img.shields.io/badge/EPICS-Purdue_RSCOE-C2882B?style=for-the-badge" alt="EPICS"/>
    <img src="https://
-  
 
 </p>
 
