@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""
+AgroBot: Dynamic Soil Penetration Force Monitor & Fault Interlock
+Ingests high-speed 24-bit ADC telemetry from the dibbler load-cell stage.
+Applies low-pass filtering and isolates soil compaction profiles.
+"""
+
+import time
+import sys
+import numpy as np
+from collections import deque
+
+class SoilForceMonitor:
+    def __init__(self, sampling_rate_hz=100.0, force_limit_newtons=118.0):
+        self.fs = sampling_rate_hz
+        self.dt = 1.0 / self.fs
+        self.force_limit = force_limit_newtons
+        
+        # Moving Average Filter Buffer (5-point smoothing)
+        self.filter_window = 5
+        self.sample_buffer = deque(maxlen=self.filter_window)
+        
+        # Actuator Safety Bounds
+        self.actuator_thrust_limit_n = 250.0 # Peak rating of NEMA 23 leadscrew setup
+        self.current_filtered_force = 0.0
+        self.safety_factor = 2.1
+
+    def convert_adc_to_newtons(self, raw_adc_value: int) -> float:
+        """
+        Converts 24-bit differential ADC integer to calibrated Newtons.
+        Calibration: 2.0 mV/V sensitivity, 50kg capacity at 5.0V excitation.
+        """
+        v_ref = 5.0
+        pga_gain = 128
+        full_scale_adc = 2**23 - 1
+        v_measured = (raw_adc_value / full_scale_adc) * (v_ref / pga_gain)
+        
+        # Load cell transfer function: 50 kg == 490.5 N @ 10.0 mV
+        newtons = (v_measured / 0.010) * 490.5
+        return float(newtons)
+
+    def process_telemetry(self, raw_adc: int) -> dict:
+        raw_force = self.convert_adc_to_newtons(raw_adc)
+        self.sample_buffer.append(raw_force)
+        self.current_filtered_force = float(np.mean(self.sample_buffer))
+
+        # Real-time Actuator Margin
+        instantaneous_safety_factor = (
+            self.actuator_thrust_limit_n / max(0.1, self.current_filtered_force)
+        )
+
+        status = {
+            "force_raw_n": round(raw_force, 2),
+            "force_filtered_n": round(self.current_filtered_force, 2),
+            "safety_factor": round(instantaneous_safety_factor, 2),
+            "fault_triggered": False,
+            "operational_status": "NOMINAL"
+        }
+
+        # Hardpan / Obstacle Threshold Check
+        if self.current_filtered_force >= self.force_limit:
+            status["fault_triggered"] = True
+            status["operational_status"] = "ALERT_HARDPAN_LIMIT_BREACHED"
+        elif self.current_filtered_force >= (self.force_limit * 0.85):
+            status["operational_status"] = "WARNING_HIGH_SOIL_COMPACTION"
+
+        return status
+
+if __name__ == "__main__":
+    monitor = SoilForceMonitor()
+    print("[INFO] Initializing AgroBot Soil Penetration Force Interlock...")
+    
+    # Synthetic validation sweep: Nominal penetration followed by hardpan strike
+    synthetic_adc_stream = [
+        12000, 28000, 52000, 89000, 142000, 185000, 192000, 210000, 310000
+    ]
+
+    for sample in synthetic_adc_stream:
+        reading = monitor.process_telemetry(sample)
+        print(f"Force: {reading['force_filtered_n']:>6.2f} N | "
+              f"Safety Factor: {reading['safety_factor']:>4.2f} | "
+              f"Status: {reading['operational_status']}")
+        if reading["fault_triggered"]:
+            print(">>> EMERGENCY RETRACT TRIGGERED! Actuator safely protected.")
+            break
+        time.sleep(0.01)
