@@ -1,0 +1,18 @@
+Item No,Category,Component Name,Part Number / Specification,Operating Voltage,Interface Protocol,Functionality,Qty,Ref Designator
+1,Compute,Embedded AI Companion Computer,NVIDIA Jetson Orin Nano (8GB Module),9V-19V DC,USB/UART/Ethernet,ROS 2 navigation stack ES-EKF and perception,1,U1_COMPUTE
+2,Compute,Real-Time Motion Microcontroller,STM32 Nucleo-F446RE (ARM Cortex-M4),5.0V DC,CAN/UART/SPI/PWM,Zero-velocity kinematic loop and stepper clocking,1,U2_MCU
+3,Power,Lithium Iron Phosphate Battery Pack,Custom 8S LiFePO4 (25.6V Nom 40Ah),20.0V-29.2V,CAN Bus (BMS),Main off-grid energy storage,1,BAT1
+4,Power,Synchronous Step-Down DC-DC,Mean Well DDR-120B-19 (19V / 6.3A),24V to 19V,Direct DC,Regulated power supply for Jetson Orin,1,PSU1
+5,Power,Industrial Isolated DC-DC Buck,Traco Power TEP 75-2412WI (12V / 6.2A),24V to 12V,Direct DC,Isolated power rail for stereo camera and router,1,PSU2
+6,Power,Synchronous Buck Converter,Murata OKI-78SR-5/1.5-W36-C (5V / 6A),24V to 5V,Direct DC,Regulated 5V logic bus for MCU LiDAR and sensors,1,PSU3
+7,Locomotion,BLDC Planetary Hub Motors,8-inch High-Torque Geared Hub Motor (350W),24V DC,UVW 3-Phase,Terramechanic 4WD rover propulsion,4,M1-M4
+8,Locomotion,Field-Oriented BLDC Driver,ODrive v3.6 / Dual Brushless Driver,24V DC,CAN 2.0B,Closed-loop current and velocity wheel regulation,2,DRV1-DRV2
+9,Actuation,Closed-Loop Vertical Stepper,NEMA 23 Stepper with Integrated Encoder (2.2Nm),24V DC,Step / Dir / Enable,Vertical dibbling axis ball-screw drive,1,ACT1_Z
+10,Actuation,Closed-Loop Horizontal Stepper,NEMA 23 Stepper with Integrated Encoder (2.2Nm),24V DC,Step / Dir / Enable,Zero-relative-velocity carriage counter-translation,1,ACT2_X
+11,Actuation,Micro-Stepper Driver Modules,Leadshine CL57 Closed-Loop Stepper Driver,24V DC,Optocoupled Step/Dir,Microstepping control for dibbler axes,2,DRV3-DRV4
+12,Perception,Planar 2D Laser Scanner,Slamtec RPLiDAR S2 (30m Range 30kHz),5.0V DC,Ethernet / Serial,Cartographer SLAM and crop-row boundary detection,1,SENS1_LIDAR
+13,Perception,RGB-D Stereo Camera,Intel RealSense D435i,5.0V USB-C,USB 3.2 Gen 1,Seedling cassette inspection and terrain clearance,1,SENS2_DEPTH
+14,Perception,Dual-Band RTK-GNSS Receiver,SparkFun RTK Facet (u-blox ZED-F9P),5.0V DC,UART / NMEA,Sub-centimeter georeferenced field positioning,1,SENS3_RTK
+15,Sensing,Tension/Compression Load Cell,S-Type 50kg Alloy Steel Strain Gauge,5.0V Excitation,Analog mV/V,Measures dynamic vertical soil penetration force,1,SENS4_FORCE
+16,Sensing,Precision Analog Front-End,TI ADS1220 (24-bit Delta-Sigma ADC),3.3V-5.0V,SPI,Digitizes high-resolution soil load cell telemetry,1,ADC1
+17,Safety,Emergency Stop Switch,Eaton M22-PVT Red Push-Turn to Reset (2NC),24V / 10A,Direct Hardware Loop,Instantaneous hardware power cut to all actuators,1,SW1_ESTOP
