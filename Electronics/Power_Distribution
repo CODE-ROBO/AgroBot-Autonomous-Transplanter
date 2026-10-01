@@ -1,0 +1,32 @@
+# AgroBot: Power Architecture & Avionics Signal Distribution
+
+### 1. Primary Electrical Specifications
+* **Main Energy Storage:** 24V (8S) 40Ah Lithium Iron Phosphate ($\text{LiFePO}_4$) pack with integrated CAN-bus Battery Management System (BMS).
+  * Nominal Voltage: $25.6\text{ V}$
+  * Full Charge Voltage: $29.2\text{ V}$
+  * Discharge Cutoff Voltage: $20.0\text{ V}$
+  * Maximum Continuous Discharge: $60\text{ A}$ ($1.5\text{C}$)
+* **Nominal Power Budget:** $24\text{V} \times 3.8\text{A} \approx 91.2\text{ W}$ continuous during autonomous transplanting operation ($>10.2\text{ hours}$ operational field endurance).
+* **Peak Transient Draw:** $24\text{V} \times 26.5\text{A} \approx 636\text{ W}$ (simultaneous 4-wheel obstacle climb + dibbler soil impact).
+
+---
+
+### 2. Regulated Bus Architecture & Power Rails
+
+```text
+  [ 24V 40Ah LiFePO4 Battery ] 
+             │
+             ├──► [ 60A DC Circuit Breaker / Manual Safety Disconnect ]
+             │           │
+             │           ├──► 24V Raw Traction Bus (Hub Motors & Stepper Drivers)
+             │           │
+             │           ├──► [ 24V-to-19V 8A Synchronous Buck ] ──► NVIDIA Jetson Orin Nano
+             │           │
+             │           ├──► [ 24V-to-12V 5A Isolated Buck ] ──► RealSense D435i / Router
+             │           │
+             │           └──► [ 24V-to-5V 6A Isolated Buck ]
+             │                     │
+             │                     ├──► STM32 Nucleo-F446RE (Motion MCU)
+             │                     ├──► RPLiDAR S2 (2D LiDAR)
+             │                     ├──► SparkFun RTK Facet (Dual-band L1/L2 GNSS)
+             │                     └──► Low-Noise 5V Analog Rail (HX711 / Load Cell)
