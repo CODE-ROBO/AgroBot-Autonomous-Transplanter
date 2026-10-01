@@ -1,0 +1,161 @@
+/**
+ * =============================================================================
+ * AgroBot: Zero-Relative-Velocity Dibbler Synchronization Controller
+ * Target Architecture: STM32 ARM Cortex-M4 (FreeRTOS) / ROS 2 Micro-ROS
+ * 
+ * Kinematic Objective:
+ * Matches horizontal carriage speed strictly against forward rover locomotion:
+ * v_carriage(t) = -v_rover(t)  -->  v_net_horizontal = 0.0 mm/s
+ * Eliminates root-ball tearing, furrow damage, and transverse shear stress.
+ * =============================================================================
+ */
+
+#include <cstdint>
+#include <cmath>
+#include <algorithm>
+
+// Mechanical Gear Ratios & Pitch Constants
+constexpr double LEADSCREW_PITCH_MM_REV = 5.0;     // 5mm vertical displacement per rotation
+constexpr double TIMING_BELT_PITCH_DIAMETER_MM = 38.2; // Carriage horizontal drive pulley
+constexpr double CARRIAGE_MM_PER_REV = M_PI * TIMING_BELT_PITCH_DIAMETER_MM;
+constexpr int32_t ENCODER_TICKS_PER_REV = 4000;    // 1000 CPR quadrature encoder
+
+// Operational Operational Boundaries
+constexpr double MAX_PLANTING_DEPTH_MM = 50.0;
+constexpr double TARGET_CYCLE_PERIOD_SEC = 1.05;    // Total insertion-retraction dwell
+constexpr double FORCE_LIMIT_HARDPAN_N = 118.0;     // Soil penetration threshold safety bound
+
+enum class PlantingState {
+    IDLE,
+    SYNCHRONIZING_CARRIAGE,
+    PENETRATING_SOIL,
+    DISCHARGING_SEEDLING,
+    RETRACTING_TOOL,
+    RAPID_RETURN_CARRIAGE,
+    FAULT_OVERFORCE_RETRACT
+};
+
+struct KinematicCommand {
+    double carriage_step_rate_hz;
+    double dibbler_step_rate_hz;
+    bool dibbler_dir_down;
+    bool carriage_dir_rear;
+    PlantingState current_state;
+};
+
+class DibblerKinematicEngine {
+public:
+    DibblerKinematicEngine() 
+        : state_(PlantingState::IDLE), 
+          phase_timer_(0.0), 
+          depth_achieved_mm_(0.0),
+          carriage_position_mm_(0.0) {}
+
+    KinematicCommand update(double v_rover_mps, double soil_reaction_force_n, double dt) {
+        KinematicCommand cmd{0.0, 0.0, false, false, state_};
+
+        // 1. Safety Interlock: Hardpan / Underground Obstacle Detection
+        if (soil_reaction_force_n > FORCE_LIMIT_HARDPAN_N && 
+           (state_ == PlantingState::PENETRATING_SOIL)) {
+            state_ = PlantingState::FAULT_OVERFORCE_RETRACT;
+        }
+
+        switch (state_) {
+            case PlantingState::IDLE:
+                phase_timer_ = 0.0;
+                depth_achieved_mm_ = 0.0;
+                // Trigger planting cycle when rover is in motion
+                if (std::abs(v_rover_mps) > 0.02) {
+                    state_ = PlantingState::SYNCHRONIZING_CARRIAGE;
+                }
+                break;
+
+            case PlantingState::SYNCHRONIZING_CARRIAGE:
+            case PlantingState::PENETRATING_SOIL:
+            case PlantingState::DISCHARGING_SEEDLING:
+            case PlantingState::RETRACTING_TOOL: {
+                // Zero-Relative-Velocity Law: Counter-translate carriage to cancel rover speed
+                double v_carriage_mps = v_rover_mps; // Match ground speed rearward
+                double carriage_revs_sec = (v_carriage_mps * 1000.0) / CARRIAGE_MM_PER_REV;
+                cmd.carriage_step_rate_hz = std::abs(carriage_revs_sec * ENCODER_TICKS_PER_REV);
+                cmd.carriage_dir_rear = (v_rover_mps > 0.0);
+                carriage_position_mm_ += (v_carriage_mps * 1000.0) * dt;
+
+                phase_timer_ += dt;
+
+                // Sub-State Execution: Vertical Axis Trajectory (Harmonic Cam Motion)
+                if (phase_timer_ < (TARGET_CYCLE_PERIOD_SEC * 0.45)) {
+                    // Phase A: Penetration (Harmonic acceleration)
+                    state_ = PlantingState::PENETRATING_SOIL;
+                    double omega = M_PI / (TARGET_CYCLE_PERIOD_SEC * 0.45);
+                    double vz_mm_s = (MAX_PLANTING_DEPTH_MM * 0.5) * omega * std::sin(omega * phase_timer_);
+                    
+                    cmd.dibbler_step_rate_hz = (vz_mm_s / LEADSCREW_PITCH_MM_REV) * ENCODER_TICKS_PER_REV;
+                    cmd.dibbler_dir_down = true;
+                    depth_achieved_mm_ += vz_mm_s * dt;
+                } 
+                else if (phase_timer_ < (TARGET_CYCLE_PERIOD_SEC * 0.55)) {
+                    // Phase B: Seedling Discharge at Bottom Dead Center
+                    state_ = PlantingState::DISCHARGING_SEEDLING;
+                    cmd.dibbler_step_rate_hz = 0.0;
+                } 
+                else if (phase_timer_ < TARGET_CYCLE_PERIOD_SEC) {
+                    // Phase C: Vertical Retraction
+                    state_ = PlantingState::RETRACTING_TOOL;
+                    double t_retract = phase_timer_ - (TARGET_CYCLE_PERIOD_SEC * 0.55);
+                    double omega = M_PI / (TARGET_CYCLE_PERIOD_SEC * 0.45);
+                    double vz_mm_s = (MAX_PLANTING_DEPTH_MM * 0.5) * omega * std::sin(omega * t_retract);
+
+                    cmd.dibbler_step_rate_hz = (vz_mm_s / LEADSCREW_PITCH_MM_REV) * ENCODER_TICKS_PER_REV;
+                    cmd.dibbler_dir_down = false;
+                    depth_achieved_mm_ -= vz_mm_s * dt;
+                } 
+                else {
+                    // End of Ground Immersion Phase
+                    state_ = PlantingState::RAPID_RETURN_CARRIAGE;
+                    phase_timer_ = 0.0;
+                }
+                break;
+            }
+
+            case PlantingState::RAPID_RETURN_CARRIAGE: {
+                // High-velocity carriage reset back to forward mechanical home index
+                double return_speed_mm_s = 250.0;
+                double carriage_revs_sec = return_speed_mm_s / CARRIAGE_MM_PER_REV;
+                cmd.carriage_step_rate_hz = carriage_revs_sec * ENCODER_TICKS_PER_REV;
+                cmd.carriage_dir_rear = false; // Move forward to home
+                cmd.dibbler_step_rate_hz = 0.0;
+
+                carriage_position_mm_ -= return_speed_mm_s * dt;
+                if (carriage_position_mm_ <= 0.0) {
+                    carriage_position_mm_ = 0.0;
+                    state_ = PlantingState::IDLE;
+                }
+                break;
+            }
+
+            case PlantingState::FAULT_OVERFORCE_RETRACT: {
+                // Emergency Rapid Vertical Egress: Clear tool from rock/hardpan
+                cmd.carriage_step_rate_hz = 0.0;
+                cmd.dibbler_step_rate_hz = (80.0 / LEADSCREW_PITCH_MM_REV) * ENCODER_TICKS_PER_REV;
+                cmd.dibbler_dir_down = false; // Pull UP immediately
+                depth_achieved_mm_ -= 80.0 * dt;
+
+                if (depth_achieved_mm_ <= 0.0) {
+                    depth_achieved_mm_ = 0.0;
+                    state_ = PlantingState::IDLE;
+                }
+                break;
+            }
+        }
+
+        cmd.current_state = state_;
+        return cmd;
+    }
+
+private:
+    PlantingState state_;
+    double phase_timer_;
+    double depth_achieved_mm_;
+    double carriage_position_mm_;
+};
