@@ -1,4 +1,4 @@
-ee<h1 align="center">AgroBot: Autonomous Precision Transplantation Platform 🌱</h1>
+<h1 align="center">AgroBot: Autonomous Precision Transplantation Platform 🌱</h1>
 <h4 align="center">Zero-Relative-Velocity Kinematics, Elastoplastic Soil Mechanics, & ROS-Based Sensor Fusion</h4>
 
 <p align="center">
